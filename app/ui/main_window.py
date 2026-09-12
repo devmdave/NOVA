@@ -6,7 +6,7 @@ from app.ui.components.sidebar import Sidebar
 from app.ui.views.generate_view import GenerateView
 from app.ui.views.history_view import HistoryView
 from app.ui.views.models_view import ModelsView
-from app.ui.views.placeholder_view import PlaceholderView
+from app.ui.views.settings_view import SettingsView
 
 
 class MainWindow(QMainWindow):
@@ -40,12 +40,13 @@ class MainWindow(QMainWindow):
         # Views
         self.history_view = HistoryView(self._app_service)
         self.history_view.reuse_requested.connect(self._on_reuse_history)
+        self.settings_view = SettingsView(self._app_service)
 
         self.views = {
             "generate": GenerateView(self._app_service),
             "history":  self.history_view,
             "models":   ModelsView(self._app_service),
-            "settings": PlaceholderView("Settings"),
+            "settings": self.settings_view,
         }
         for view in self.views.values():
             self.stacked_widget.addWidget(view)

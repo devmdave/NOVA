@@ -94,11 +94,11 @@ def main() -> None:
 
     # 2. Logging
     setup_logging(debug=settings.debug)
-    logger = logging.getLogger("nova.main")
-    logger.info("Starting NOVA %s (real-model=%s)", settings.version, args.real_model)
+    use_real = args.real_model or settings.use_real_model
+    logger.info("Starting NOVA %s (real-model=%s)", settings.version, use_real)
 
     # 3. Build the inference engine
-    engine = _build_engine(args.real_model, settings)
+    engine = _build_engine(use_real, settings)
 
     # 4. Compose the application service
     app_service = ApplicationService(settings=settings, inference_engine=engine)

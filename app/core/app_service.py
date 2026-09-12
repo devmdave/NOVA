@@ -21,6 +21,8 @@ from app.history.repository import LocalHistoryRepository
 from app.history.service import HistoryService
 from app.inference.models import GenerationResult
 
+from app.config.service import SettingsService
+
 logger = logging.getLogger("nova.core.app_service")
 
 
@@ -37,6 +39,9 @@ class ApplicationService:
         inference_engine: InferenceEngine,
     ) -> None:
         self.settings = settings
+        self.settings_service = SettingsService(settings)
+        self.settings_service.settings_changed.connect(self._on_settings_changed)
+
         self.hardware: HardwareCapabilities = detect_hardware()
         self.inference = InferenceService(engine=inference_engine)
 
@@ -65,6 +70,13 @@ class ApplicationService:
             len(self.model_registry),
             settings.models_dir,
         )
+
+    def _on_settings_changed(self, new_settings: AppSettings) -> None:
+        """Apply dynamic settings updates without restarting when practical."""
+        self.settings = new_settings
+        self.model_store = LocalModelStore(new_settings.models_dir)
+        self.model_registry.refresh_statuses(new_settings.models_dir)
+        logger.info("ApplicationService updated active settings dynamically.")
 
     def _on_generation_completed(self, result: GenerationResult) -> None:
         """Completion callback triggered whenever an inference run finishes."""
