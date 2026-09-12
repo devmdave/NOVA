@@ -4,6 +4,7 @@ from PySide6.QtCore import Qt
 from app.core.app_service import ApplicationService
 from app.ui.components.sidebar import Sidebar
 from app.ui.views.generate_view import GenerateView
+from app.ui.views.history_view import HistoryView
 from app.ui.views.models_view import ModelsView
 from app.ui.views.placeholder_view import PlaceholderView
 
@@ -36,10 +37,13 @@ class MainWindow(QMainWindow):
         self.stacked_widget = QStackedWidget()
         layout.addWidget(self.stacked_widget)
 
-        # Views — only GenerateView receives the service
+        # Views
+        self.history_view = HistoryView(self._app_service)
+        self.history_view.reuse_requested.connect(self._on_reuse_history)
+
         self.views = {
             "generate": GenerateView(self._app_service),
-            "history":  PlaceholderView("History"),
+            "history":  self.history_view,
             "models":   ModelsView(self._app_service),
             "settings": PlaceholderView("Settings"),
         }
@@ -51,6 +55,14 @@ class MainWindow(QMainWindow):
     def _handle_navigation(self, page_id: str) -> None:
         if page_id in self.views:
             self.stacked_widget.setCurrentWidget(self.views[page_id])
+
+    def _on_reuse_history(self, record) -> None:
+        """Handle parameter reuse from history view."""
+        generate_view = self.views.get("generate")
+        if generate_view and hasattr(generate_view, "apply_history_record"):
+            generate_view.apply_history_record(record)
+        self.sidebar.set_active_page("generate")
+        self._handle_navigation("generate")
 
     def closeEvent(self, event) -> None:  # noqa: N802
         """Gracefully shut down services when the window is closed."""

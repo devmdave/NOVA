@@ -17,7 +17,11 @@ from app.ui.views.generate_view import GenerateView
 
 @pytest.fixture
 def mock_service(tmp_path):
-    settings = AppSettings(models_dir=str(tmp_path), default_model_id="flux-schnell")
+    settings = AppSettings(
+        models_dir=str(tmp_path),
+        history_dir=str(tmp_path / "history"),
+        default_model_id="flux-schnell",
+    )
     engine = MockInferenceEngine()
     service = ApplicationService(settings, engine)
     

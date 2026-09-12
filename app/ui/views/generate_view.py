@@ -262,6 +262,27 @@ class GenerateView(QWidget):
         self.lbl_model_status.style().unpolish(self.lbl_model_status)
         self.lbl_model_status.style().polish(self.lbl_model_status)
 
+    def apply_history_record(self, record) -> None:
+        """Populate controls from a history generation record."""
+        if record.prompt:
+            self.txt_prompt.setPlainText(record.prompt)
+        if record.negative_prompt is not None:
+            self.txt_negative.setPlainText(record.negative_prompt)
+
+        mode_str = getattr(record, "mode", "text-to-image") or "text-to-image"
+        mode_idx = {"text-to-image": 0, "image-to-image": 1, "inpainting": 2}.get(mode_str, 0)
+        self.cmb_mode.setCurrentIndex(mode_idx)
+
+        settings = {
+            "width": record.width,
+            "height": record.height,
+            "steps": record.steps,
+            "guidance": record.guidance,
+            "seed": record.seed,
+            "denoising_strength": getattr(record, "denoising_strength", 0.5),
+        }
+        self.settings_panel.set_settings(settings)
+
     # ---------------------------------------------------------------------- #
     # Slots                                                                    #
     # ---------------------------------------------------------------------- #

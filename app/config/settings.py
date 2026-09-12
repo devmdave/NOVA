@@ -12,6 +12,9 @@ class AppSettings:
     # Local model storage — configurable via env var NOVA_MODELS_DIR
     models_dir: str = os.path.join(os.path.expanduser("~"), ".nova", "models")
 
+    # Local history storage — configurable via env var NOVA_HISTORY_DIR
+    history_dir: str = os.path.join(os.path.expanduser("~"), ".nova", "history")
+
     # The model to load when --real-model is requested.
     # Must match a ModelSpec.model_id in the registry.
     default_model_id: str = "flux-schnell"
@@ -27,6 +30,10 @@ def load_settings() -> AppSettings:
         models_dir=os.environ.get(
             "NOVA_MODELS_DIR",
             os.path.join(os.path.expanduser("~"), ".nova", "models"),
+        ),
+        history_dir=os.environ.get(
+            "NOVA_HISTORY_DIR",
+            os.path.join(os.path.expanduser("~"), ".nova", "history"),
         ),
         default_model_id=os.environ.get("NOVA_DEFAULT_MODEL", "flux-schnell"),
     )

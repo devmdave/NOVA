@@ -53,6 +53,18 @@ class Sidebar(QWidget):
         self._set_active_button(button)
         self.navigation_requested.emit(page_id)
         
+    def set_active_page(self, page_id: str) -> None:
+        """Programmatically switch active navigation button."""
+        mapping = {
+            "generate": self.btn_generate,
+            "history": self.btn_history,
+            "models": self.btn_models,
+            "settings": self.btn_settings,
+        }
+        btn = mapping.get(page_id)
+        if btn:
+            self._set_active_button(btn)
+
     def _set_active_button(self, active_btn: QPushButton):
         for btn in [self.btn_generate, self.btn_history, self.btn_models, self.btn_settings]:
             btn.setProperty("active", btn is active_btn)

@@ -126,6 +126,23 @@ class SettingsPanel(QGroupBox):
             "seed":     self.spin_seed.value(),
         }
 
+    def set_settings(self, settings: dict) -> None:
+        """Apply a dictionary of settings to the controls."""
+        if "width" in settings and isinstance(settings["width"], int):
+            self.spin_width.setValue(settings["width"])
+        if "height" in settings and isinstance(settings["height"], int):
+            self.spin_height.setValue(settings["height"])
+        if "steps" in settings and isinstance(settings["steps"], int):
+            self.spin_steps.setValue(settings["steps"])
+        if "guidance" in settings and isinstance(settings["guidance"], (int, float)):
+            guidance_val = int(round(settings["guidance"] * 10))
+            self.slider_guidance.setValue(max(0, min(guidance_val, 300)))
+        if "denoising_strength" in settings and isinstance(settings["denoising_strength"], (int, float)):
+            denoising_val = int(round(settings["denoising_strength"] * 100))
+            self.slider_denoising.setValue(max(0, min(denoising_val, 100)))
+        if "seed" in settings and isinstance(settings["seed"], int):
+            self.spin_seed.setValue(settings["seed"])
+
     def set_enabled_all(self, enabled: bool) -> None:
         """Enable or disable all controls (called during generation)."""
         for widget in (

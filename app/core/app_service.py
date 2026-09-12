@@ -17,6 +17,10 @@ from app.models.registry import ModelRegistry
 from app.models.store import LocalModelStore
 from app.models.selection import ModelSelectionService
 
+from app.history.repository import LocalHistoryRepository
+from app.history.service import HistoryService
+from app.inference.models import GenerationResult
+
 logger = logging.getLogger("nova.core.app_service")
 
 
@@ -40,19 +44,35 @@ class ApplicationService:
         self.model_store = LocalModelStore(settings.models_dir)
         self.model_selection = ModelSelectionService()
 
+        # History persistence
+        self.history_repo = LocalHistoryRepository(settings.history_dir)
+        self.history_service = HistoryService(self.history_repo)
+
+        # Automatically save successful generations to history
+        self.inference.add_completion_listener(self._on_generation_completed)
+
         # Refresh registry statuses based on what's on disk
         self.model_registry.refresh_statuses(settings.models_dir)
 
         logger.info(
-            "ApplicationService ready — backend=%s hardware=%s",
+            "ApplicationService ready — backend=%s hardware=%s history_dir=%s",
             inference_engine.backend_name(),
             self.hardware.summary(),
+            settings.history_dir,
         )
         logger.info(
             "Model registry: %d spec(s) | models_dir=%s",
             len(self.model_registry),
             settings.models_dir,
         )
+
+    def _on_generation_completed(self, result: GenerationResult) -> None:
+        """Completion callback triggered whenever an inference run finishes."""
+        if result.success:
+            self.history_service.save_generation(
+                result=result,
+                model_id=self.settings.default_model_id,
+            )
 
     def shutdown(self) -> None:
         """Gracefully shut down all managed services."""

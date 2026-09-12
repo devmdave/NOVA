@@ -34,8 +34,15 @@ class InferenceService:
         self._executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="nova-inference")
         self._cancel_event: Optional[threading.Event] = None
         self._lock = threading.Lock()
+        self._completion_listeners: list[Callable[[GenerationResult], None]] = []
 
         logger.info("InferenceService initialised with backend '%s'", engine.backend_name())
+
+    def add_completion_listener(self, listener: Callable[[GenerationResult], None]) -> None:
+        """Register a callback invoked whenever a generation task completes."""
+        with self._lock:
+            if listener not in self._completion_listeners:
+                self._completion_listeners.append(listener)
 
     # ---------------------------------------------------------------------- #
     # Public API                                                               #
@@ -127,5 +134,12 @@ class InferenceService:
                 # Clear the cancel event reference after the job finishes
                 if self._cancel_event is cancel_event:
                     self._cancel_event = None
+                listeners = list(self._completion_listeners)
+
+        for listener in listeners:
+            try:
+                listener(result)
+            except Exception as exc:  # noqa: BLE001
+                logger.exception("Error in completion listener: %s", exc)
 
         return result
