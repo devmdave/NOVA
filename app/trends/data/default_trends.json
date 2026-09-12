@@ -1,0 +1,110 @@
+[
+  {
+    "id": "trend_photoreal_portrait",
+    "title": "Cinematic Neon Street Portrait",
+    "description": "Ultra-detailed atmospheric portrait shot in rainy Tokyo illuminated by vibrant neon signs.",
+    "prompt": "Cinematic headshot portrait of a cybernetic warrior standing in rainy Tokyo night street, vivid reflections of cyan and magenta neon lights on glossy leather jacket, shallow depth of field, 8k resolution, photorealistic, highly detailed facial features",
+    "negative_prompt": "blurry, low quality, deformed, extra limbs, bad anatomy, cartoon, oversaturated",
+    "category": "Photorealism",
+    "recommended_settings": {
+      "width": 1024,
+      "height": 1024,
+      "steps": 25,
+      "guidance": 7.5,
+      "mode": "text-to-image"
+    },
+    "source_url": "https://nova-art.local/trends/photoreal-portrait",
+    "updated_at": "2026-09-12T12:00:00Z",
+    "tags": ["photorealistic", "portrait", "neon", "cyberpunk"]
+  },
+  {
+    "id": "trend_cyberpunk_city",
+    "title": "Futuristic Metropolis Vista",
+    "description": "Expansive bird's-eye view of a futuristic mega-city with flying vehicles and glowing holographic ads.",
+    "prompt": "Breathtaking wide-angle panoramic view of a massive cyberpunk city at dusk, soaring skyscrapers with illuminated holographic billboards, flying vehicles navigating sky lanes, volumetric fog, dramatic lighting, octane render style",
+    "negative_prompt": "low resolution, muddy colors, flat lighting, simple geometry, text watermarks",
+    "category": "Sci-Fi & Cyberpunk",
+    "recommended_settings": {
+      "width": 1024,
+      "height": 768,
+      "steps": 30,
+      "guidance": 8.0,
+      "mode": "text-to-image"
+    },
+    "source_url": "https://nova-art.local/trends/cyberpunk-city",
+    "updated_at": "2026-09-12T12:00:00Z",
+    "tags": ["cityscape", "cyberpunk", "futuristic", "architecture"]
+  },
+  {
+    "id": "trend_anime_fantasy",
+    "title": "Ghibli-Inspired Magical Forest",
+    "description": "Lush, sunlit enchanted woodland featuring mystical glowing flora and ancient ruins.",
+    "prompt": "Studio Ghibli style digital painting of a sun-dappled magical ancient forest, giant glowing mushrooms, moss-covered stone archway, floating golden pollen particles, vibrant greens and warm sunlight, anime concept art",
+    "negative_prompt": "dark, gritty, photorealistic, ugly, distorted, noisy",
+    "category": "Anime & Illustration",
+    "recommended_settings": {
+      "width": 1024,
+      "height": 1024,
+      "steps": 20,
+      "guidance": 7.0,
+      "mode": "text-to-image"
+    },
+    "source_url": "https://nova-art.local/trends/anime-fantasy",
+    "updated_at": "2026-09-12T12:00:00Z",
+    "tags": ["anime", "fantasy", "nature", "ghibli"]
+  },
+  {
+    "id": "trend_isometric_diorama",
+    "title": "3D Isometric Floating Island",
+    "description": "Miniature 3D isometric voxel/low-poly floating island with a cozy cabin, waterfall, and miniature pine trees.",
+    "prompt": "Charming 3D isometric diorama of a floating miniature island, cozy wooden cabin with glowing windows, small cascading waterfall into a crystal pool, detailed pine trees, blender 3D style, tilt-shift, soft clean studio lighting",
+    "negative_prompt": "2d, flat, realistic photo, blurry, grainy, bad composition",
+    "category": "3D & Diorama",
+    "recommended_settings": {
+      "width": 1024,
+      "height": 1024,
+      "steps": 25,
+      "guidance": 7.5,
+      "mode": "text-to-image"
+    },
+    "source_url": "https://nova-art.local/trends/isometric-diorama",
+    "updated_at": "2026-09-12T12:00:00Z",
+    "tags": ["isometric", "3d", "diorama", "miniature"]
+  },
+  {
+    "id": "trend_dark_fantasy_dragon",
+    "title": "Gothic Dragon Citadel",
+    "description": "Epic dark fantasy illustration of an ancient dragon perched atop a jagged mountain fortress during a thunderstorm.",
+    "prompt": "Epic dark fantasy digital illustration, huge black dragon with glowing embers under its scales perched atop a gothic castle peak, dramatic red lightning in stormy sky, high contrast, fine detail, Frank Frazetta aesthetic",
+    "negative_prompt": "bright, cheerful, low quality, oversaturated, cute, cartoonish",
+    "category": "Concept Art",
+    "recommended_settings": {
+      "width": 1024,
+      "height": 1024,
+      "steps": 28,
+      "guidance": 8.5,
+      "mode": "text-to-image"
+    },
+    "source_url": "https://nova-art.local/trends/dark-fantasy-dragon",
+    "updated_at": "2026-09-12T12:00:00Z",
+    "tags": ["dark fantasy", "dragon", "gothic", "epic"]
+  },
+  {
+    "id": "trend_synthwave_grid",
+    "title": "80s Retro Synthwave Sunset",
+    "description": "Classic 1980s retro-futuristic grid landscape with a glowing wireframe sun and neon grid lines.",
+    "prompt": "Retro 80s synthwave aesthetic landscape, glowing neon wireframe horizon grid, massive purple and orange gradient sun, chrome sports car driving toward distant mountains, synthwave album cover, high resolution",
+    "negative_prompt": "modern, realistic photo, monochrome, dull, blurry",
+    "category": "Retrowave",
+    "recommended_settings": {
+      "width": 1024,
+      "height": 768,
+      "steps": 20,
+      "guidance": 7.0,
+      "mode": "text-to-image"
+    },
+    "source_url": "https://nova-art.local/trends/synthwave-grid",
+    "updated_at": "2026-09-12T12:00:00Z",
+    "tags": ["synthwave", "retrowave", "80s", "neon"]
+  }
+]

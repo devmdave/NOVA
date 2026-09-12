@@ -92,7 +92,7 @@ class AppSettings:
         try:
             with open(temp_path, "w", encoding="utf-8") as f:
                 json.dump(self.to_dict(), f, indent=2)
-            shutil.move(temp_path, target_path)
+            os.replace(temp_path, target_path)
             logger.info("Saved AppSettings to %s", target_path)
         except Exception as exc:
             if temp_path.exists():

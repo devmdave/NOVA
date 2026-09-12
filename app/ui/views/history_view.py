@@ -56,6 +56,10 @@ class HistoryView(QWidget):
 
         self.reload_history()
 
+    def showEvent(self, event) -> None:  # noqa: N802
+        super().showEvent(event)
+        self.reload_history()
+
     # ---------------------------------------------------------------------- #
     # UI Setup                                                                 #
     # ---------------------------------------------------------------------- #

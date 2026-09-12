@@ -14,6 +14,8 @@ from app.inference.engine import InferenceEngine
 from app.ui.main_window import MainWindow
 from app.ui.theme import apply_theme
 
+logger = logging.getLogger("nova.main")
+
 
 def _build_engine(use_real_model: bool, settings) -> InferenceEngine:
     """Construct and return the appropriate InferenceEngine.
@@ -34,7 +36,6 @@ def _build_engine(use_real_model: bool, settings) -> InferenceEngine:
     from app.models.store import LocalModelStore
     from app.runtime.diffusers_flux import DiffusersFluxEngine, DiffusersFluxRuntime
 
-    logger = logging.getLogger("nova.main")
     model_id = settings.default_model_id
     store = LocalModelStore(settings.models_dir)
     registry = ModelRegistry(include_builtins=True)

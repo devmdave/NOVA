@@ -232,4 +232,4 @@ class LocalHistoryRepository(HistoryRepository):
             tmp_file.write(data)
             tmp_path = Path(tmp_file.name)
 
-        shutil.move(tmp_path, target_path)
+        os.replace(tmp_path, target_path)

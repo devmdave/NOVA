@@ -69,6 +69,16 @@ class GenerateView(QWidget):
         self._setup_ui()
         self._prime_from_model()
 
+        # Service signals
+        self._service.settings_service.settings_changed.connect(lambda _: self._prime_from_model())
+        self._service.model_service.model_updated.connect(lambda _: self._prime_from_model())
+        self._service.model_service.model_removed.connect(lambda _: self._prime_from_model())
+        self._service.model_service.registry_refreshed.connect(self._prime_from_model)
+
+    def showEvent(self, event) -> None:  # noqa: N802
+        super().showEvent(event)
+        self._prime_from_model()
+
     # ---------------------------------------------------------------------- #
     # UI construction                                                          #
     # ---------------------------------------------------------------------- #
@@ -282,6 +292,35 @@ class GenerateView(QWidget):
             "denoising_strength": getattr(record, "denoising_strength", 0.5),
         }
         self.settings_panel.set_settings(settings)
+
+    def apply_trend(self, trend) -> None:
+        """Populate prompt and recommended settings from a Trend template without generating."""
+        if trend.prompt:
+            self.txt_prompt.setPlainText(trend.prompt)
+        if trend.negative_prompt is not None:
+            self.txt_negative.setPlainText(trend.negative_prompt)
+
+        rec = getattr(trend, "recommended_settings", {}) or {}
+        mode_str = rec.get("mode", "text-to-image")
+        mode_idx = {"text-to-image": 0, "image-to-image": 1, "inpainting": 2}.get(mode_str, 0)
+        self.cmb_mode.setCurrentIndex(mode_idx)
+
+        settings = {}
+        if "width" in rec:
+            settings["width"] = rec["width"]
+        if "height" in rec:
+            settings["height"] = rec["height"]
+        if "steps" in rec:
+            settings["steps"] = rec["steps"]
+        if "guidance" in rec:
+            settings["guidance"] = rec["guidance"]
+        if "seed" in rec:
+            settings["seed"] = rec["seed"]
+        if "denoising_strength" in rec:
+            settings["denoising_strength"] = rec["denoising_strength"]
+
+        if settings:
+            self.settings_panel.set_settings(settings)
 
     # ---------------------------------------------------------------------- #
     # Slots                                                                    #

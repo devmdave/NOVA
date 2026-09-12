@@ -13,9 +13,13 @@ from typing import Optional
 class ModelStatus(Enum):
     """Lifecycle status of a registered model."""
     NOT_INSTALLED = auto()   # Spec known, files not on disk
-    INSTALLED     = auto()   # Files present on disk, not loaded into memory
-    LOADED        = auto()   # Loaded into GPU/CPU memory and ready
-    ERROR         = auto()   # Last load/validate attempt failed
+    AVAILABLE     = auto()   # Files detected on disk, ready for validation
+    VALIDATING    = auto()   # Validation check in progress
+    READY         = auto()   # Validated and ready for use
+    INSTALLED     = auto()   # Alias for READY / files present
+    INVALID       = auto()   # Validation failed or corrupted/missing required files
+    LOADED        = auto()   # Loaded into memory and active
+    ERROR         = auto()   # Last load attempt failed
 
 
 @dataclass
@@ -29,20 +33,26 @@ class ModelSpec:
     # Stable identifier used as the directory name under models_dir
     model_id: str
 
-    display_name: str
-    description: str
+    display_name: str = ""
+    description: str = ""
 
     # Where to get the weights — HuggingFace repo ID or local path
-    source: str
+    source: str = ""
+
+    # Architecture family ("flux-1", "sdxl", "sd15", "custom")
+    architecture: str = "flux-1"
+
+    # Flag indicating whether this model spec was registered from a local custom directory
+    is_custom: bool = False
 
     # Which runtime adapter handles this model (matches RuntimeAdapter.runtime_name())
-    runtime: str
+    runtime: str = "diffusers_flux"
 
     # License string for UI display and compliance tracking
-    license: str
+    license: str = "Unknown"
 
     # Approximate minimum VRAM in GB at default precision
-    min_vram_gb: float
+    min_vram_gb: float = 0.0
 
     # Hardware recommendations and metadata
     recommended_vram_gb: float = 0.0

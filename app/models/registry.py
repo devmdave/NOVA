@@ -32,13 +32,14 @@ def _flux_schnell_spec() -> ModelSpec:
             "Released by Black Forest Labs under the Apache 2.0 license."
         ),
         source="black-forest-labs/FLUX.1-schnell",
+        architecture="flux-1",
         runtime="diffusers_flux",
         license="Apache 2.0",
         min_vram_gb=16.0,
         recommended_vram_gb=24.0,
         model_size_gb=23.8,
         precision="bfloat16",
-        capabilities=["text-to-image"],
+        capabilities=["text-to-image", "image-to-image", "inpainting"],
         supported_vendors=["NVIDIA", "AMD", "Apple"],
         default_width=1024,
         default_height=1024,
@@ -50,9 +51,10 @@ def _flux_schnell_spec() -> ModelSpec:
     )
 
 
-_BUILTIN_SPECS: list[ModelSpec] = [
-    _flux_schnell_spec(),
-]
+def _get_builtin_specs() -> list[ModelSpec]:
+    return [
+        _flux_schnell_spec(),
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -71,13 +73,13 @@ class ModelRegistry:
         self._specs: dict[str, ModelSpec] = {}
 
         if include_builtins:
-            for spec in _BUILTIN_SPECS:
+            for spec in _get_builtin_specs():
                 self._register_unsafe(spec)
 
         logger.debug("ModelRegistry initialised with %d spec(s).", len(self._specs))
 
     # ---------------------------------------------------------------------- #
-    # Registration                                                             #
+    # Registration & Persistence                                              #
     # ---------------------------------------------------------------------- #
 
     def register(self, spec: ModelSpec) -> None:
@@ -86,10 +88,33 @@ class ModelRegistry:
         if errors:
             raise SpecValidationError(spec.model_id, errors)
         self._register_unsafe(spec)
-        logger.info("Registered model spec '%s'.", spec.model_id)
+        logger.info("Registered model spec '%s' (architecture=%s).", spec.model_id, spec.architecture)
 
     def _register_unsafe(self, spec: ModelSpec) -> None:
         self._specs[spec.model_id] = spec
+
+    def refresh_statuses(self, models_dir: str | Path) -> None:
+        """Update each spec's status by checking whether files are on disk."""
+        models_path = Path(models_dir)
+        for spec in self._specs.values():
+            if spec.is_custom:
+                source_path = Path(spec.source)
+                if source_path.exists() and source_path.is_dir() and any(source_path.iterdir()):
+                    if spec.status in (ModelStatus.NOT_INSTALLED, ModelStatus.AVAILABLE, ModelStatus.INVALID):
+                        spec.status = ModelStatus.INSTALLED
+                else:
+                    if spec.status in (ModelStatus.INSTALLED, ModelStatus.READY):
+                        spec.status = ModelStatus.NOT_INSTALLED
+            else:
+                model_path = models_path / spec.model_id
+                if model_path.exists() and any(model_path.iterdir()):
+                    if spec.status in (ModelStatus.NOT_INSTALLED, ModelStatus.AVAILABLE, ModelStatus.INVALID):
+                        spec.status = ModelStatus.INSTALLED
+                        logger.info("Model '%s' detected as installed.", spec.model_id)
+                else:
+                    if spec.status in (ModelStatus.INSTALLED, ModelStatus.READY):
+                        spec.status = ModelStatus.NOT_INSTALLED
+                        logger.warning("Model '%s' files missing, status reset.", spec.model_id)
 
     # ---------------------------------------------------------------------- #
     # Lookup                                                                   #
@@ -112,27 +137,6 @@ class ModelRegistry:
 
     def list_by_runtime(self, runtime_name: str) -> list[ModelSpec]:
         return [s for s in self._specs.values() if s.runtime == runtime_name]
-
-    # ---------------------------------------------------------------------- #
-    # Status refresh                                                           #
-    # ---------------------------------------------------------------------- #
-
-    def refresh_statuses(self, models_dir: str | Path) -> None:
-        """Update each spec's status by checking whether files are on disk.
-
-        Does NOT attempt to load models — only checks file presence.
-        """
-        models_path = Path(models_dir)
-        for spec in self._specs.values():
-            model_path = models_path / spec.model_id
-            if model_path.exists() and any(model_path.iterdir()):
-                if spec.status == ModelStatus.NOT_INSTALLED:
-                    spec.status = ModelStatus.INSTALLED
-                    logger.info("Model '%s' detected as installed.", spec.model_id)
-            else:
-                if spec.status == ModelStatus.INSTALLED:
-                    spec.status = ModelStatus.NOT_INSTALLED
-                    logger.warning("Model '%s' files missing, status reset.", spec.model_id)
 
     # ---------------------------------------------------------------------- #
     # Convenience                                                              #

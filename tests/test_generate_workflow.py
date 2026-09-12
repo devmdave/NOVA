@@ -110,9 +110,8 @@ def test_cancellation_flow(qtbot, mock_service):
     qtbot.waitUntil(lambda: view.btn_cancel.isEnabled(), timeout=1000)
     
     # Trigger cancellation via the view's slot directly
-    view._on_cancel_clicked()
-        
-    qtbot.waitUntil(lambda: view.btn_generate.isEnabled(), timeout=5000)
+    with qtbot.waitSignal(worker.signals.finished, timeout=5000):
+        view._on_cancel_clicked()
 
     assert view.btn_generate.isEnabled() is True
     assert view.preview.lbl_image.property("previewState") == "cancelled"

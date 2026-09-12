@@ -23,6 +23,11 @@ from app.inference.models import GenerationResult
 
 from app.config.service import SettingsService
 
+from app.trends.repository import LocalTrendsRepository
+from app.trends.service import TrendsService
+
+from app.models.service import ModelService
+
 logger = logging.getLogger("nova.core.app_service")
 
 
@@ -48,10 +53,16 @@ class ApplicationService:
         self.model_registry = ModelRegistry(include_builtins=True)
         self.model_store = LocalModelStore(settings.models_dir)
         self.model_selection = ModelSelectionService()
+        self.model_service = ModelService(self.model_registry, self.model_store, self.settings_service)
+        self.model_service.load_persisted_custom_models(settings.models_dir)
 
         # History persistence
         self.history_repo = LocalHistoryRepository(settings.history_dir)
         self.history_service = HistoryService(self.history_repo)
+
+        # AI Trends discovery
+        self.trends_repo = LocalTrendsRepository()
+        self.trends_service = TrendsService(self.trends_repo)
 
         # Automatically save successful generations to history
         self.inference.add_completion_listener(self._on_generation_completed)

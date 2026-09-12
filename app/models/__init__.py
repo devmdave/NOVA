@@ -13,6 +13,7 @@ from .errors import (
 from .registry import ModelRegistry
 from .spec import ModelSpec, ModelStatus
 from .store import LocalModelStore
+from .service import ModelService
 
 __all__ = [
     # Spec & status
@@ -22,6 +23,8 @@ __all__ = [
     "ModelRegistry",
     # Store
     "LocalModelStore",
+    # Service
+    "ModelService",
     # Errors
     "ModelError",
     "ModelNotFoundError",

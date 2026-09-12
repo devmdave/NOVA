@@ -46,6 +46,10 @@ class SettingsView(QWidget):
         # Connect to settings service signals
         self._settings_service.settings_changed.connect(self._on_settings_changed_externally)
 
+    def showEvent(self, event) -> None:  # noqa: N802
+        super().showEvent(event)
+        self._load_from_settings(self._settings_service.get_settings())
+
     # ---------------------------------------------------------------------- #
     # UI Construction                                                          #
     # ---------------------------------------------------------------------- #

@@ -44,6 +44,12 @@ class LocalModelStore:
         """Return the directory where this model's weights live."""
         return self.models_dir / model_id
 
+    def model_path_for_spec(self, spec: ModelSpec) -> Path:
+        """Return the disk path for a spec (handles custom models)."""
+        if spec.is_custom and spec.source:
+            return Path(spec.source).expanduser().resolve()
+        return self.model_path(spec.model_id)
+
     def ensure_models_dir(self) -> Path:
         """Create the models root directory if it doesn't exist."""
         self.models_dir.mkdir(parents=True, exist_ok=True)
@@ -58,15 +64,20 @@ class LocalModelStore:
         path = self.model_path(model_id)
         return path.exists() and path.is_dir() and any(path.iterdir())
 
+    def is_spec_installed(self, spec: ModelSpec) -> bool:
+        """True if the model files specified by spec exist on disk."""
+        path = self.model_path_for_spec(spec)
+        return path.exists() and path.is_dir() and any(path.iterdir())
+
     def validate_installation(self, spec: ModelSpec) -> list[str]:
         """Return a list of problems with the installed files (empty = OK).
 
         Checks for required files/directories specific to the runtime.
         """
-        if not self.is_installed(spec.model_id):
-            return [f"Model directory '{self.model_path(spec.model_id)}' does not exist or is empty."]
+        model_path = self.model_path_for_spec(spec)
+        if not (model_path.exists() and model_path.is_dir() and any(model_path.iterdir())):
+            return [f"Model directory '{model_path}' does not exist or is empty."]
 
-        model_path = self.model_path(spec.model_id)
         required = _REQUIRED_FILES_BY_RUNTIME.get(spec.runtime, [])
         missing: list[str] = []
         for name in required:
