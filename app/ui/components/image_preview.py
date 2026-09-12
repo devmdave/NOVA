@@ -78,6 +78,14 @@ class ImagePreview(QWidget):
         self.lbl_meta.hide()
         self.btn_save.hide()
 
+    def set_state_cancelled(self) -> None:
+        self._clear_pixmap()
+        self.lbl_image.setText("Generation Cancelled")
+        self.lbl_image.setProperty("previewState", "cancelled")
+        self._refresh_style(self.lbl_image)
+        self.lbl_meta.hide()
+        self.btn_save.hide()
+
     def set_state_completed(self, result: GenerationResult) -> None:
         """Render the generated image and show metadata."""
         pixmap = self._result_to_pixmap(result)

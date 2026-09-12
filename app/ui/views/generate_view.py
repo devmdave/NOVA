@@ -211,6 +211,14 @@ class GenerateView(QWidget):
             status_prop,
         )
 
+        if not self._service.inference.is_available():
+            self.btn_generate.setEnabled(False)
+            self.btn_generate.setToolTip("Model is not available. Please check settings.")
+            self._show_model_unavailable_error()
+        else:
+            self.btn_generate.setEnabled(True)
+            self.btn_generate.setToolTip("")
+
     def _update_model_status_label(self, text: str, status: str) -> None:
         self.lbl_model_status.setText(text)
         self.lbl_model_status.setProperty("modelStatus", status)
@@ -311,7 +319,7 @@ class GenerateView(QWidget):
                 result.duration_seconds,
             )
         elif result.cancelled:
-            self.preview.set_state_idle()
+            self.preview.set_state_cancelled()
             logger.info("Generation cancelled by user.")
         else:
             # Sanitise the error: don't show raw internal exception strings

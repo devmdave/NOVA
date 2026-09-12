@@ -101,9 +101,9 @@ def test_cancellation_flow(qtbot, mock_service):
     view._on_cancel_clicked()
         
     qtbot.waitUntil(lambda: view.btn_generate.isEnabled(), timeout=5000)
-        
+
     assert view.btn_generate.isEnabled() is True
-    assert view.preview.lbl_image.property("previewState") == "idle"
+    assert view.preview.lbl_image.property("previewState") == "cancelled"
 
 
 def test_worker_validation_error_propagation(qtbot, mock_service, monkeypatch):
