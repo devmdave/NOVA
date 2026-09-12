@@ -55,7 +55,8 @@ class MockInferenceEngine(InferenceEngine):
         start = time.monotonic()
 
         logger.debug(
-            "MockInferenceEngine.generate — prompt=%r steps=%d seed=%d",
+            "MockInferenceEngine.generate — mode=%s prompt=%r steps=%d seed=%d",
+            request.mode,
             request.prompt[:60],
             request.steps,
             seed,
@@ -112,6 +113,7 @@ class MockInferenceEngine(InferenceEngine):
             status=GenerationStatus.COMPLETED,
             metadata={
                 "backend": self.backend_name(),
+                "mode": request.mode,
                 "width": request.width,
                 "height": request.height,
             },

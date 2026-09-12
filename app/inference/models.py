@@ -44,6 +44,12 @@ class GenerationRequest:
     guidance: float = 7.5
     seed: int = -1          # -1 means "choose randomly at generation time"
 
+    # Mode and editing inputs
+    mode: str = "text-to-image"  # text-to-image, image-to-image, inpainting
+    source_image_data: Optional[bytes] = None
+    mask_image_data: Optional[bytes] = None
+    denoising_strength: float = 0.5
+
     def resolve_seed(self) -> int:
         """Return the seed to use; generates a random one when seed == -1."""
         if self.seed == -1:
@@ -63,6 +69,19 @@ class GenerationRequest:
             errors.append(f"Steps must be between 1 and 200 (got {self.steps}).")
         if not (0.0 <= self.guidance <= 30.0):
             errors.append(f"Guidance must be between 0.0 and 30.0 (got {self.guidance}).")
+            
+        if self.mode not in ("text-to-image", "image-to-image", "inpainting"):
+            errors.append(f"Invalid mode: {self.mode}")
+            
+        if self.mode in ("image-to-image", "inpainting") and not self.source_image_data:
+            errors.append(f"Source image is required for {self.mode}.")
+            
+        if self.mode == "inpainting" and not self.mask_image_data:
+            errors.append("Mask image is required for inpainting.")
+            
+        if not (0.0 <= self.denoising_strength <= 1.0):
+            errors.append(f"Denoising strength must be between 0.0 and 1.0 (got {self.denoising_strength}).")
+            
         return errors
 
 

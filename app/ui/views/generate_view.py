@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
     QProgressBar,
+    QComboBox,
 )
 
 from app.core.app_service import ApplicationService
@@ -38,6 +39,7 @@ from app.inference import (
 from app.models.spec import ModelStatus
 from app.ui.components.image_preview import ImagePreview
 from app.ui.components.settings_panel import SettingsPanel
+from app.ui.components.image_editor import ImageEditor
 from app.ui.worker import GenerationWorker
 
 logger = logging.getLogger("nova.ui.generate_view")
@@ -61,6 +63,7 @@ class GenerateView(QWidget):
         self._active_worker: GenerationWorker | None = None
         self._start_time: float = 0.0
         self._last_progress_msg: str = ""
+        self._current_mode = "text-to-image"
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._on_timer_tick)
         self._setup_ui()
@@ -90,6 +93,21 @@ class GenerateView(QWidget):
         left_layout = QVBoxLayout(left)
         left_layout.setContentsMargins(0, 0, 12, 0)
         left_layout.setSpacing(10)
+        
+        # Mode selector
+        mode_layout = QHBoxLayout()
+        mode_label = QLabel("Mode:")
+        self.cmb_mode = QComboBox()
+        self.cmb_mode.addItems(["Text-to-Image", "Image-to-Image", "Inpainting"])
+        self.cmb_mode.currentIndexChanged.connect(self._on_mode_changed)
+        mode_layout.addWidget(mode_label)
+        mode_layout.addWidget(self.cmb_mode)
+        mode_layout.addStretch()
+        left_layout.addLayout(mode_layout)
+        
+        # Image Editor
+        self.image_editor = ImageEditor()
+        left_layout.addWidget(self.image_editor)
 
         # Prompt
         prompt_label = QLabel("Prompt")
@@ -211,13 +229,32 @@ class GenerateView(QWidget):
             status_prop,
         )
 
-        if not self._service.inference.is_available():
+        self._check_mode_capability()
+
+    def _check_mode_capability(self) -> None:
+        """Check if the selected mode is supported by the current model."""
+        registry = self._service.model_registry
+        settings = self._service.settings
+        spec = registry.get_or_none(settings.default_model_id)
+
+        if spec is None or not self._service.inference.is_available():
             self.btn_generate.setEnabled(False)
             self.btn_generate.setToolTip("Model is not available. Please check settings.")
             self._show_model_unavailable_error()
+            return
+            
+        if self._current_mode not in spec.capabilities:
+            self.btn_generate.setEnabled(False)
+            self.btn_generate.setToolTip(f"Mode not supported by '{spec.display_name}'")
+            self.preview.set_state_error(
+                f"Capability Not Supported\n\n"
+                f"The model '{spec.display_name}' does not support {self._current_mode}.\n"
+                f"Please switch to a supported mode or select a different model."
+            )
         else:
             self.btn_generate.setEnabled(True)
             self.btn_generate.setToolTip("")
+            self.preview.set_state_idle()
 
     def _update_model_status_label(self, text: str, status: str) -> None:
         self.lbl_model_status.setText(text)
@@ -229,6 +266,20 @@ class GenerateView(QWidget):
     # Slots                                                                    #
     # ---------------------------------------------------------------------- #
 
+    @Slot(int)
+    def _on_mode_changed(self, index: int) -> None:
+        mode_str = self.cmb_mode.currentText().lower()
+        if mode_str == "text-to-image":
+            self._current_mode = "text-to-image"
+        elif mode_str == "image-to-image":
+            self._current_mode = "image-to-image"
+        elif mode_str == "inpainting":
+            self._current_mode = "inpainting"
+            
+        self.image_editor.set_mode(self._current_mode)
+        self.settings_panel.set_mode(self._current_mode)
+        self._check_mode_capability()
+
     @Slot()
     def _on_generate_clicked(self) -> None:
         prompt = self.txt_prompt.toPlainText().strip()
@@ -236,6 +287,7 @@ class GenerateView(QWidget):
         settings = self.settings_panel.get_settings()
 
         request = GenerationRequest(
+            mode=self._current_mode,
             prompt=prompt,
             negative_prompt=negative,
             width=settings["width"],
@@ -243,6 +295,9 @@ class GenerateView(QWidget):
             steps=settings["steps"],
             guidance=settings["guidance"],
             seed=settings["seed"],
+            denoising_strength=settings.get("denoising_strength", 0.5),
+            source_image_data=self.image_editor.get_source_bytes(),
+            mask_image_data=self.image_editor.get_mask_bytes(),
         )
 
         # Client-side validation before hitting the service

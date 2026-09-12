@@ -19,7 +19,15 @@ from app.ui.views.generate_view import GenerateView
 def mock_service(tmp_path):
     settings = AppSettings(models_dir=str(tmp_path), default_model_id="flux-schnell")
     engine = MockInferenceEngine()
-    return ApplicationService(settings, engine)
+    service = ApplicationService(settings, engine)
+    
+    # Inject capabilities into the mock spec for testing
+    spec = service.model_registry.get_or_none("flux-schnell")
+    if spec:
+        # Assign explicitly to avoid leaking list mutations across tests
+        spec.capabilities = ["text-to-image", "image-to-image", "inpainting"]
+        
+    return service
 
 
 def test_generate_view_initializes_with_model_defaults(qtbot, mock_service):
@@ -126,3 +134,45 @@ def test_worker_validation_error_propagation(qtbot, mock_service, monkeypatch):
     
     assert "Invalid settings." in view.preview.lbl_image.text()
     assert view.btn_generate.isEnabled() is True
+
+
+def test_generation_guard_mode_not_supported(qtbot, mock_service):
+    """If the active model does not support the selected mode, block generation."""
+    # Remove inpainting capability for this test
+    spec = mock_service.model_registry.get_or_none("flux-schnell")
+    spec.capabilities.remove("inpainting")
+
+    view = GenerateView(mock_service)
+    qtbot.addWidget(view)
+    
+    # Switch to inpainting (index 2)
+    view.cmb_mode.setCurrentIndex(2)
+    
+    # Generate should be disabled
+    assert view.btn_generate.isEnabled() is False
+    assert view.preview.lbl_image.property("previewState") == "error"
+    assert "does not support inpainting" in view.preview.lbl_image.text()
+
+
+def test_validation_errors_for_modes(qtbot, mock_service):
+    """Ensure missing images trigger validation errors."""
+    view = GenerateView(mock_service)
+    qtbot.addWidget(view)
+    view.txt_prompt.setPlainText("valid prompt")
+    
+    # Image to image without source image (index 1)
+    view.cmb_mode.setCurrentIndex(1)
+    qtbot.mouseClick(view.btn_generate, Qt.LeftButton)
+    
+    assert view.preview.lbl_image.property("previewState") == "error"
+    assert "Source image is required" in view.preview.lbl_image.text()
+    
+    # Inpainting without source or mask (index 2)
+    view.cmb_mode.setCurrentIndex(2)
+    qtbot.mouseClick(view.btn_generate, Qt.LeftButton)
+    
+    assert view.preview.lbl_image.property("previewState") == "error"
+    assert "Source image is required" in view.preview.lbl_image.text()
+    
+    # We could simulate loading an image here, but just verifying the UI blocks is sufficient.
+

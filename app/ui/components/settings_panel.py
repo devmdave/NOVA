@@ -70,6 +70,24 @@ class SettingsPanel(QGroupBox):
         guidance_layout.addWidget(self.lbl_guidance_val)
         layout.addLayout(guidance_layout)
 
+        # -- Denoising Strength (hidden in text-to-image mode) -------------- #
+        self.layout_denoising = QHBoxLayout()
+        self.slider_denoising = QSlider(Qt.Horizontal)
+        self.slider_denoising.setRange(0, 100)   # 0.0 – 1.0 in 0.01 increments
+        self.slider_denoising.setValue(50)       # 0.5 default
+        self.lbl_denoising_val = QLabel("0.50")
+        self.slider_denoising.valueChanged.connect(
+            lambda v: self.lbl_denoising_val.setText(f"{v / 100.0:.2f}")
+        )
+        self.lbl_denoising = QLabel("Denoising:")
+        self.layout_denoising.addWidget(self.lbl_denoising)
+        self.layout_denoising.addWidget(self.slider_denoising)
+        self.layout_denoising.addWidget(self.lbl_denoising_val)
+        layout.addLayout(self.layout_denoising)
+        
+        # Hide denoising by default
+        self.set_mode("text-to-image")
+
         # -- Seed ----------------------------------------------------------- #
         seed_layout = QHBoxLayout()
         self.spin_seed = self._create_spinbox(-1, 2_147_483_647, -1, 1)
@@ -104,6 +122,7 @@ class SettingsPanel(QGroupBox):
             "height":   self.spin_height.value(),
             "steps":    self.spin_steps.value(),
             "guidance": self.slider_guidance.value() / 10.0,
+            "denoising_strength": self.slider_denoising.value() / 100.0,
             "seed":     self.spin_seed.value(),
         }
 
@@ -114,9 +133,17 @@ class SettingsPanel(QGroupBox):
             self.spin_height,
             self.spin_steps,
             self.slider_guidance,
+            self.slider_denoising,
             self.spin_seed,
         ):
             widget.setEnabled(enabled)
+
+    def set_mode(self, mode: str) -> None:
+        """Show or hide controls depending on the editing mode."""
+        is_editing = mode in ("image-to-image", "inpainting")
+        self.lbl_denoising.setVisible(is_editing)
+        self.slider_denoising.setVisible(is_editing)
+        self.lbl_denoising_val.setVisible(is_editing)
 
     # ---------------------------------------------------------------------- #
     # Helpers                                                                  #
