@@ -17,7 +17,7 @@ from app.models.custom_detector import detect_and_validate_custom_model
 from app.models.errors import ModelNotFoundError
 from app.models.registry import ModelRegistry
 from app.models.spec import ModelSpec, ModelStatus
-from app.models.store import LocalModelStore
+from app.models.acquisition import ModelAcquisitionService
 
 logger = logging.getLogger("nova.models.service")
 
@@ -34,11 +34,27 @@ class ModelService(QObject):
         registry: ModelRegistry,
         store: LocalModelStore,
         settings_service: SettingsService,
+        acquisition_service: Optional[ModelAcquisitionService] = None,
     ) -> None:
         super().__init__()
         self._registry = registry
         self._store = store
         self._settings_service = settings_service
+        self._acquisition_service = acquisition_service or ModelAcquisitionService(
+            registry, store, settings_service
+        )
+        self._acquisition_service.download_finished.connect(self._on_download_finished)
+
+    @property
+    def acquisition(self) -> ModelAcquisitionService:
+        return self._acquisition_service
+
+    def _on_download_finished(self, model_id: str, success: bool, spec: Optional[ModelSpec], error: str) -> None:
+        if success and spec:
+            if spec.is_custom:
+                self.save_custom_models()
+            self.model_updated.emit(spec)
+            self.registry_refreshed.emit()
 
     @property
     def registry(self) -> ModelRegistry:

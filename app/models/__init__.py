@@ -14,6 +14,9 @@ from .registry import ModelRegistry
 from .spec import ModelSpec, ModelStatus
 from .store import LocalModelStore
 from .service import ModelService
+from .catalog import get_official_catalog, get_catalog_item
+from .acquisition import ModelAcquisitionService
+from .hf_utils import parse_hf_repo_id, inspect_hf_custom_model
 
 __all__ = [
     # Spec & status
@@ -25,6 +28,12 @@ __all__ = [
     "LocalModelStore",
     # Service
     "ModelService",
+    # Acquisition & Catalog
+    "ModelAcquisitionService",
+    "get_official_catalog",
+    "get_catalog_item",
+    "parse_hf_repo_id",
+    "inspect_hf_custom_model",
     # Errors
     "ModelError",
     "ModelNotFoundError",

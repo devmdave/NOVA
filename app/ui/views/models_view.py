@@ -1,5 +1,5 @@
 """
-Models View — local model management, scanning, validation, and removal.
+Models View — local model management, scanning, validation, removal, and acquisition store.
 """
 from __future__ import annotations
 
@@ -17,7 +17,9 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QMessageBox,
+    QProgressBar,
     QPushButton,
     QRadioButton,
     QScrollArea,
@@ -26,6 +28,8 @@ from PySide6.QtWidgets import (
 )
 
 from app.core.app_service import ApplicationService
+from app.models.catalog import get_official_catalog
+from app.models.hf_utils import inspect_hf_custom_model
 from app.models.selection import ModelCompatibility, ModelRecommendation
 from app.models.spec import ModelSpec, ModelStatus
 
@@ -133,6 +137,127 @@ class ModelDetailDialog(QDialog):
 
 
 # ---------------------------------------------------------------------------
+# Dialog: Import Custom Hugging Face Model
+# ---------------------------------------------------------------------------
+
+class AddCustomHfModelDialog(QDialog):
+    """Modal dialog for inspecting and acquiring a custom Hugging Face model repository."""
+
+    def __init__(self, app_service: ApplicationService, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self._service = app_service
+        self._inspected_spec: Optional[ModelSpec] = None
+        self.setWindowTitle("Import Hugging Face Model")
+        self.setMinimumWidth(560)
+        self._setup_ui()
+
+    def _setup_ui(self) -> None:
+        layout = QVBoxLayout(self)
+        layout.setSpacing(12)
+
+        lbl_title = QLabel("Import Hugging Face Model")
+        lbl_title.setStyleSheet("font-size: 16px; font-weight: bold;")
+        layout.addWidget(lbl_title)
+
+        lbl_desc = QLabel(
+            "Enter a Hugging Face model identifier (e.g. 'black-forest-labs/FLUX.1-schnell' or 'stabilityai/sdxl-turbo') "
+            "or repository URL. NOVA verifies architecture compatibility before downloading."
+        )
+        lbl_desc.setWordWrap(True)
+        layout.addWidget(lbl_desc)
+
+        input_layout = QHBoxLayout()
+        self.txt_repo_id = QLineEdit()
+        self.txt_repo_id.setPlaceholderText("owner/repository or https://huggingface.co/...")
+        input_layout.addWidget(self.txt_repo_id)
+
+        self.btn_inspect = QPushButton("Inspect & Verify")
+        self.btn_inspect.clicked.connect(self._on_inspect_clicked)
+        input_layout.addWidget(self.btn_inspect)
+        layout.addLayout(input_layout)
+
+        # Inspection Details Group Box
+        self.group_details = QGroupBox("Model Metadata Inspection")
+        self.group_details.hide()
+        details_layout = QVBoxLayout(self.group_details)
+
+        self.lbl_inspect_status = QLabel("")
+        self.lbl_inspect_status.setWordWrap(True)
+        details_layout.addWidget(self.lbl_inspect_status)
+
+        self.form_details = QFormLayout()
+        self.lbl_val_name = QLabel("")
+        self.lbl_val_arch = QLabel("")
+        self.lbl_val_runtime = QLabel("")
+        self.lbl_val_vram = QLabel("")
+        self.form_details.addRow("Detected Model:", self.lbl_val_name)
+        self.form_details.addRow("Architecture:", self.lbl_val_arch)
+        self.form_details.addRow("Runtime Adapter:", self.lbl_val_runtime)
+        self.form_details.addRow("Min VRAM:", self.lbl_val_vram)
+        details_layout.addLayout(self.form_details)
+
+        layout.addWidget(self.group_details)
+
+        # Action Buttons
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+
+        self.btn_cancel = QPushButton("Cancel")
+        self.btn_cancel.clicked.connect(self.reject)
+        btn_layout.addWidget(self.btn_cancel)
+
+        self.btn_download = QPushButton("Download & Register")
+        self.btn_download.setObjectName("PrimaryButton")
+        self.btn_download.setEnabled(False)
+        self.btn_download.clicked.connect(self._on_download_clicked)
+        btn_layout.addWidget(self.btn_download)
+
+        layout.addLayout(btn_layout)
+
+    def _on_inspect_clicked(self) -> None:
+        raw_input = self.txt_repo_id.text().strip()
+        if not raw_input:
+            QMessageBox.warning(self, "Invalid Input", "Please enter a Hugging Face repository identifier or URL.")
+            return
+
+        spec, errors = inspect_hf_custom_model(raw_input)
+        self.group_details.show()
+
+        if errors or spec is None:
+            self._inspected_spec = None
+            err_msg = errors[0] if errors else "Unsupported model."
+            self.lbl_inspect_status.setText(f"<b>✗ Compatibility Check Failed</b><br><span style='color: #ff6b6b;'>{err_msg}</span>")
+            self.lbl_val_name.setText("—")
+            self.lbl_val_arch.setText("—")
+            self.lbl_val_runtime.setText("—")
+            self.lbl_val_vram.setText("—")
+            self.btn_download.setEnabled(False)
+        else:
+            self._inspected_spec = spec
+            self.lbl_inspect_status.setText("<b>✓ Model Architecture Supported</b><br><span style='color: #4DCC88;'>NOVA supports this model pipeline. Ready for download.</span>")
+            self.lbl_val_name.setText(spec.display_name)
+            self.lbl_val_arch.setText(spec.architecture.upper())
+            self.lbl_val_runtime.setText(spec.runtime)
+            self.lbl_val_vram.setText(f"{spec.min_vram_gb} GB")
+            self.btn_download.setEnabled(True)
+
+    def _on_download_clicked(self) -> None:
+        if not self._inspected_spec:
+            return
+
+        ok, msg = self._service.model_service.acquisition.download_custom_hf_model(self._inspected_spec.source)
+        if not ok:
+            QMessageBox.critical(self, "Download Failed", msg)
+        else:
+            QMessageBox.information(
+                self,
+                "Download Started",
+                f"Started download for '{self._inspected_spec.display_name}'. Progress will update in Model Store."
+            )
+            self.accept()
+
+
+# ---------------------------------------------------------------------------
 # Dialog: Remove Model Confirmation
 # ---------------------------------------------------------------------------
 
@@ -227,11 +352,15 @@ class RemoveModelDialog(QDialog):
 # ---------------------------------------------------------------------------
 
 class ModelsView(QWidget):
+    """Primary UI screen for hardware evaluation, official model store, custom imports, and model management."""
+
     def __init__(self, app_service: ApplicationService) -> None:
         super().__init__()
         self._service = app_service
         self._model_service = app_service.model_service
+        self._acquisition = app_service.model_service.acquisition
         self._recommendation: Optional[ModelRecommendation] = None
+        self._download_progress_map: dict[str, tuple[float, str]] = {}
 
         self._setup_ui()
 
@@ -239,6 +368,12 @@ class ModelsView(QWidget):
         self._model_service.model_updated.connect(self._on_model_event)
         self._model_service.model_removed.connect(self._on_model_event)
         self._model_service.registry_refreshed.connect(self._refresh_data)
+
+        # Acquisition Signals
+        self._acquisition.download_started.connect(self._on_download_started)
+        self._acquisition.download_progress.connect(self._on_download_progress)
+        self._acquisition.download_finished.connect(self._on_download_finished)
+        self._acquisition.download_cancelled.connect(self._on_download_cancelled)
 
         self._refresh_data()
 
@@ -264,11 +399,16 @@ class ModelsView(QWidget):
         btn_rescan_all.clicked.connect(self._on_rescan_all_clicked)
         header_layout.addWidget(btn_rescan_all)
 
-        self.btn_add_custom = QPushButton("Add Custom Model…")
-        self.btn_add_custom.setObjectName("PrimaryButton")
-        self.btn_add_custom.setCursor(Qt.PointingHandCursor)
-        self.btn_add_custom.clicked.connect(self._on_add_custom_model_clicked)
-        header_layout.addWidget(self.btn_add_custom)
+        self.btn_add_custom_folder = QPushButton("Add Local Model Folder…")
+        self.btn_add_custom_folder.setCursor(Qt.PointingHandCursor)
+        self.btn_add_custom_folder.clicked.connect(self._on_add_custom_folder_clicked)
+        header_layout.addWidget(self.btn_add_custom_folder)
+
+        self.btn_add_hf_model = QPushButton("Import Hugging Face Model…")
+        self.btn_add_hf_model.setObjectName("PrimaryButton")
+        self.btn_add_hf_model.setCursor(Qt.PointingHandCursor)
+        self.btn_add_hf_model.clicked.connect(self._on_add_hf_model_clicked)
+        header_layout.addWidget(self.btn_add_hf_model)
 
         root_layout.addLayout(header_layout)
 
@@ -322,8 +462,17 @@ class ModelsView(QWidget):
         rec_layout.addWidget(self.lbl_recommendation)
         self.content_layout.addWidget(self.rec_container)
 
-        # Models List
-        models_label = QLabel("Available Local Models")
+        # Official Model Store Section
+        store_label = QLabel("Model Store — Download Official Models")
+        store_label.setObjectName("SectionTitle")
+        self.content_layout.addWidget(store_label)
+
+        self.store_list_layout = QVBoxLayout()
+        self.store_list_layout.setSpacing(12)
+        self.content_layout.addLayout(self.store_list_layout)
+
+        # Registered Installed Models Section
+        models_label = QLabel("Registered Local Models")
         models_label.setObjectName("SectionTitle")
         self.content_layout.addWidget(models_label)
 
@@ -373,7 +522,17 @@ class ModelsView(QWidget):
         self.rec_container.style().unpolish(self.rec_container)
         self.rec_container.style().polish(self.rec_container)
 
-        # Clear existing cards
+        # Refresh Official Model Store cards
+        while self.store_list_layout.count():
+            item = self.store_list_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        for catalog_spec in get_official_catalog():
+            card = self._create_official_store_card(catalog_spec)
+            self.store_list_layout.addWidget(card)
+
+        # Refresh Installed Models cards
         while self.models_list_layout.count():
             item = self.models_list_layout.takeAt(0)
             if item.widget():
@@ -387,6 +546,85 @@ class ModelsView(QWidget):
             is_recommended = (spec.model_id == rec.recommended_model_id)
             card = self._create_model_card(spec, eval_result, is_active=is_active, is_recommended=is_recommended)
             self.models_list_layout.addWidget(card)
+
+    def _create_official_store_card(self, spec: ModelSpec) -> QWidget:
+        card = QWidget()
+        card.setObjectName("ModelCard")
+        layout = QVBoxLayout(card)
+        layout.setSpacing(8)
+
+        # Header
+        header_layout = QHBoxLayout()
+        name_lbl = QLabel(f"<b>{spec.display_name}</b> <span style='color: #888888;'>({spec.source})</span>")
+        header_layout.addWidget(name_lbl)
+        header_layout.addStretch()
+
+        is_registered = spec.model_id in self._service.model_registry
+        reg_spec = self._service.model_registry.get_or_none(spec.model_id)
+        is_ready = is_registered and reg_spec and reg_spec.status in (ModelStatus.READY, ModelStatus.INSTALLED)
+        is_downloading = self._acquisition.is_downloading(spec.model_id)
+
+        if is_ready:
+            lbl_st = QLabel("Installed / Ready")
+            lbl_st.setStyleSheet("color: #4DCC88; font-weight: bold;")
+            header_layout.addWidget(lbl_st)
+        elif is_downloading:
+            lbl_st = QLabel("Downloading…")
+            lbl_st.setStyleSheet("color: #f39c12; font-weight: bold;")
+            header_layout.addWidget(lbl_st)
+        else:
+            lbl_st = QLabel("Available for Download")
+            lbl_st.setStyleSheet("color: #888888;")
+            header_layout.addWidget(lbl_st)
+
+        layout.addLayout(header_layout)
+
+        # Details
+        desc_lbl = QLabel(spec.description)
+        desc_lbl.setWordWrap(True)
+        layout.addWidget(desc_lbl)
+
+        info_lbl = QLabel(
+            f"Architecture: <b>{spec.architecture.upper()}</b>  ·  "
+            f"Size: <b>{spec.model_size_gb} GB</b>  ·  "
+            f"Min VRAM: <b>{spec.min_vram_gb} GB</b>  ·  "
+            f"Capabilities: <b>{', '.join(spec.capabilities)}</b>"
+        )
+        info_lbl.setStyleSheet("color: #aaaaaa; font-size: 11px;")
+        layout.addWidget(info_lbl)
+
+        # Download Progress Bar (shown if downloading)
+        if is_downloading:
+            p_bar = QProgressBar()
+            p_bar.setRange(0, 100)
+            frac, msg = self._download_progress_map.get(spec.model_id, (0.0, "Downloading…"))
+            p_bar.setValue(int(frac * 100))
+            layout.addWidget(p_bar)
+
+            msg_lbl = QLabel(msg)
+            msg_lbl.setStyleSheet("font-size: 11px; color: #f39c12;")
+            layout.addWidget(msg_lbl)
+
+        # Actions
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+
+        if is_downloading:
+            btn_cancel = QPushButton("Cancel Download")
+            btn_cancel.clicked.connect(lambda: self._acquisition.cancel_download(spec.model_id))
+            btn_layout.addWidget(btn_cancel)
+        elif is_ready:
+            btn_active = QPushButton("Select Active Model")
+            btn_active.clicked.connect(lambda: self._service.model_service.select_active_model(spec.model_id))
+            btn_layout.addWidget(btn_active)
+        else:
+            btn_dl = QPushButton("Download Model")
+            btn_dl.setObjectName("PrimaryButton")
+            btn_dl.clicked.connect(lambda _, mid=spec.model_id: self._on_download_official_clicked(mid))
+            btn_layout.addWidget(btn_dl)
+
+        layout.addLayout(btn_layout)
+        return card
 
     def _create_model_card(
         self,
@@ -417,168 +655,170 @@ class ModelsView(QWidget):
 
         status_lbl = QLabel()
         status_lbl.setObjectName("ModelCardStatus")
-        status_name = spec.status.name
         if spec.status in (ModelStatus.READY, ModelStatus.INSTALLED):
             status_lbl.setText("Ready / Installed")
-            status_lbl.setProperty("statusState", "ready")
+            status_lbl.setStyleSheet("color: #4DCC88; font-weight: bold;")
         elif spec.status == ModelStatus.INVALID:
             status_lbl.setText("Invalid")
-            status_lbl.setProperty("statusState", "missing")
-        elif spec.status == ModelStatus.NOT_INSTALLED:
-            status_lbl.setText("Not Installed")
-            status_lbl.setProperty("statusState", "missing")
+            status_lbl.setStyleSheet("color: #FF5555; font-weight: bold;")
         else:
-            status_lbl.setText(status_name)
-            status_lbl.setProperty("statusState", "ready")
+            status_lbl.setText(spec.status.name)
+            status_lbl.setStyleSheet("color: #aaaaaa;")
 
         header_layout.addWidget(status_lbl)
         layout.addLayout(header_layout)
 
-        # Specs info & local path
-        model_path = self._service.model_store.model_path_for_spec(spec)
-        path_str = f"<b>Path:</b> {model_path}"
-        path_lbl = QLabel(path_str)
-        path_lbl.setStyleSheet("color: #aaaaaa; font-size: 11px;")
-        path_lbl.setWordWrap(True)
-        layout.addWidget(path_lbl)
-
-        caps_str = ", ".join(spec.capabilities) if spec.capabilities else "text-to-image"
-        details_str = (
-            f"<b>Architecture:</b> {spec.architecture.upper()} | "
-            f"<b>Runtime:</b> {spec.runtime} | "
-            f"<b>Min VRAM:</b> {spec.min_vram_gb} GB | "
-            f"<b>Size:</b> {spec.model_size_gb} GB | "
-            f"<b>Capabilities:</b> {caps_str}"
+        # Metadata summary
+        meta_text = (
+            f"Architecture: <b>{spec.architecture.upper()}</b>  ·  "
+            f"Runtime: <b>{spec.runtime}</b>  ·  "
+            f"VRAM Req: <b>{spec.min_vram_gb} GB</b>  ·  "
+            f"Capabilities: <b>{', '.join(spec.capabilities)}</b>"
         )
-        details_lbl = QLabel(details_str)
-        details_lbl.setWordWrap(True)
-        layout.addWidget(details_lbl)
+        meta_lbl = QLabel(meta_text)
+        meta_lbl.setStyleSheet("color: #aaaaaa; font-size: 11px;")
+        layout.addWidget(meta_lbl)
 
-        if spec.error_message:
-            err_lbl = QLabel(f"⚠️ Validation Issue: {spec.error_message}")
-            err_lbl.setStyleSheet("color: #ff6b6b; font-size: 11px; font-weight: bold;")
-            err_lbl.setWordWrap(True)
-            layout.addWidget(err_lbl)
-
-        # Compatibility feedback
+        # Compatibility info line
         if compat:
             compat_lbl = QLabel()
             compat_lbl.setWordWrap(True)
             if compat.is_compatible:
-                compat_lbl.setText("✓ Compatible: " + " ".join(compat.reasons))
-                compat_lbl.setStyleSheet("color: #4DCC88;")
+                compat_lbl.setText("✓ " + " ".join(compat.reasons))
+                compat_lbl.setStyleSheet("color: #4DCC88; font-size: 11px;")
             else:
-                compat_lbl.setText("✗ Incompatible: " + " ".join(compat.reasons))
-                compat_lbl.setStyleSheet("color: #FF5555;")
+                compat_lbl.setText("✗ " + " ".join(compat.reasons))
+                compat_lbl.setStyleSheet("color: #FF5555; font-size: 11px;")
             layout.addWidget(compat_lbl)
 
-        # Action bar
-        actions_layout = QHBoxLayout()
-        actions_layout.setSpacing(8)
-
-        btn_details = QPushButton("Details…")
-        btn_details.setCursor(Qt.PointingHandCursor)
-        btn_details.clicked.connect(lambda checked=False, s=spec: self._on_show_details(s))
-        actions_layout.addWidget(btn_details)
-
-        btn_rescan = QPushButton("Re-scan")
-        btn_rescan.setCursor(Qt.PointingHandCursor)
-        btn_rescan.clicked.connect(lambda checked=False, m_id=spec.model_id: self._on_rescan_model(m_id))
-        actions_layout.addWidget(btn_rescan)
-
-        btn_remove = QPushButton("Remove")
-        btn_remove.setStyleSheet("background-color: #8b2626; color: white; border-radius: 4px; padding: 4px 10px;")
-        btn_remove.setCursor(Qt.PointingHandCursor)
-        btn_remove.clicked.connect(lambda checked=False, s=spec: self._on_remove_model(s))
-        actions_layout.addWidget(btn_remove)
-
-        actions_layout.addStretch()
+        # Action Buttons
+        btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(8)
 
         if is_active:
-            btn_active = QPushButton("✓ Active Generation Model")
-            btn_active.setEnabled(False)
-            btn_active.setStyleSheet("background-color: #27ae60; color: white; border-radius: 4px; padding: 4px 12px;")
-            actions_layout.addWidget(btn_active)
-        else:
-            btn_select = QPushButton("Use for Generation")
-            btn_select.setCursor(Qt.PointingHandCursor)
-            btn_select.clicked.connect(lambda checked=False, m_id=spec.model_id: self._on_select_model(m_id))
-            actions_layout.addWidget(btn_select)
+            lbl_active = QLabel("<b>✓ Active Target</b>")
+            lbl_active.setStyleSheet("color: #4DCC88;")
+            btn_layout.addWidget(lbl_active)
 
-        layout.addLayout(actions_layout)
+        btn_layout.addStretch()
+
+        btn_details = QPushButton("View Details")
+        btn_details.clicked.connect(lambda _, s=spec: self._show_model_details(s))
+        btn_layout.addWidget(btn_details)
+
+        if not is_active and spec.status in (ModelStatus.READY, ModelStatus.INSTALLED):
+            btn_select = QPushButton("Select as Active")
+            btn_select.setObjectName("PrimaryButton")
+            btn_select.clicked.connect(lambda _, mid=spec.model_id: self._select_model(mid))
+            btn_layout.addWidget(btn_select)
+
+        btn_rescan = QPushButton("Re-scan")
+        btn_rescan.clicked.connect(lambda _, mid=spec.model_id: self._rescan_model(mid))
+        btn_layout.addWidget(btn_rescan)
+
+        btn_remove = QPushButton("Remove")
+        btn_remove.setStyleSheet("color: #ff6b6b;")
+        btn_remove.clicked.connect(lambda _, s=spec: self._remove_model(s))
+        btn_layout.addWidget(btn_remove)
+
+        layout.addLayout(btn_layout)
         return card
 
     # ---------------------------------------------------------------------- #
-    # Slots                                                                    #
+    # Acquisition Slots                                                       #
     # ---------------------------------------------------------------------- #
 
-    @Slot()
-    def _on_rescan_all_clicked(self) -> None:
-        self._model_service.rescan_all()
-        self._show_status("Re-scanned all local models.", error=False)
+    def _on_download_official_clicked(self, model_id: str) -> None:
+        ok, msg = self._acquisition.download_official_model(model_id)
+        if not ok:
+            QMessageBox.warning(self, "Download Error", msg)
+        else:
+            self._show_status(f"Started downloading model '{model_id}'...", "info")
+
+    def _on_download_started(self, model_id: str) -> None:
+        self._download_progress_map[model_id] = (0.0, "Starting download...")
         self._refresh_data()
 
-    @Slot()
-    def _on_add_custom_model_clicked(self) -> None:
-        target_dir = QFileDialog.getExistingDirectory(
-            self,
-            "Select Local Custom Model Directory",
-            self._service.settings.models_dir,
-        )
-        if not target_dir:
-            return
-
-        spec, errors = self._model_service.register_custom_model(target_dir)
-        if errors or spec is None:
-            err_msg = " · ".join(errors) if errors else "Failed to detect custom model."
-            logger.warning("Custom model registration failed for %s: %s", target_dir, err_msg)
-            self._show_status(err_msg, error=True)
-            return
-
-        self._show_status(f"Successfully registered custom model '{spec.display_name}'.", error=False)
+    def _on_download_progress(self, model_id: str, downloaded_mb: float, total_mb: float, frac: float, msg: str) -> None:
+        self._download_progress_map[model_id] = (frac, msg)
         self._refresh_data()
 
-    def _on_show_details(self, spec: ModelSpec) -> None:
-        dialog = ModelDetailDialog(spec, self._service, parent=self)
+    def _on_download_finished(self, model_id: str, success: bool, spec: Optional[ModelSpec], error_msg: str) -> None:
+        self._download_progress_map.pop(model_id, None)
+        self._refresh_data()
+        if success and spec:
+            self._show_status(f"Successfully downloaded and registered '{spec.display_name}'.", "good")
+        elif not success and error_msg:
+            QMessageBox.critical(self, "Download Failed", f"Failed to acquire model '{model_id}':\n\n{error_msg}")
+
+    def _on_download_cancelled(self, model_id: str) -> None:
+        self._download_progress_map.pop(model_id, None)
+        self._refresh_data()
+        self._show_status(f"Download cancelled for model '{model_id}'.", "warning")
+
+    # ---------------------------------------------------------------------- #
+    # General Actions                                                          #
+    # ---------------------------------------------------------------------- #
+
+    def _on_model_event(self, *args) -> None:
+        self._refresh_data()
+
+    def _show_model_details(self, spec: ModelSpec) -> None:
+        dialog = ModelDetailDialog(spec, self._service, self)
         dialog.exec()
         self._refresh_data()
 
-    def _on_rescan_model(self, model_id: str) -> None:
-        status, problems = self._model_service.rescan_model(model_id)
-        if problems:
-            self._show_status(f"Re-scanned '{model_id}': {status.name} — {' · '.join(problems)}", error=True)
-        else:
-            self._show_status(f"Re-scanned '{model_id}': Status is {status.name}.", error=False)
-        self._refresh_data()
-
-    def _on_remove_model(self, spec: ModelSpec) -> None:
-        dialog = RemoveModelDialog(spec, self._service, parent=self)
-        if dialog.exec() == QDialog.Accepted:
-            self._show_status(f"Removed '{spec.display_name}' from NOVA.", error=False)
-            self._refresh_data()
-
     def _on_select_model(self, model_id: str) -> None:
-        success = self._model_service.select_active_model(model_id)
-        if success:
-            self._show_status(f"Selected model '{model_id}' for generation.", error=False)
-            self._refresh_data()
-        else:
-            self._show_status(f"Failed to select model '{model_id}'.", error=True)
+        """Alias for backward compatibility with tests."""
+        self._select_model(model_id)
 
-    @Slot(object)
-    def _on_model_event(self, arg) -> None:
+    def _select_model(self, model_id: str) -> None:
+        if self._model_service.select_active_model(model_id):
+            spec = self._model_service.get_model(model_id)
+            disp = spec.display_name if spec else model_id
+            self._show_status(f"Selected '{disp}' as active generation target.", "good")
+            self._refresh_data()
+
+    def _rescan_model(self, model_id: str) -> None:
+        status, problems = self._model_service.rescan_model(model_id)
+        if status in (ModelStatus.READY, ModelStatus.INSTALLED):
+            self._show_status(f"Re-scan complete: model '{model_id}' is READY.", "good")
+        else:
+            reasons = f": {', '.join(problems)}" if problems else ""
+            self._show_status(f"Re-scan complete: model '{model_id}' is {status.name}{reasons}.", "bad")
         self._refresh_data()
 
-    def _show_status(self, message: str, error: bool) -> None:
-        self.lbl_status.setText(message)
-        if error:
-            self.lbl_status.setStyleSheet(
-                "background-color: #3b1b1b; color: #ff6b6b; border: 1px solid #a83232; "
-                "border-radius: 6px; padding: 8px; font-weight: bold;"
-            )
+    def _remove_model(self, spec: ModelSpec) -> None:
+        dialog = RemoveModelDialog(spec, self._service, self)
+        if dialog.exec() == QDialog.Accepted:
+            self._show_status(f"Removed model '{spec.display_name}' from catalog.", "warning")
+            self._refresh_data()
+
+    def _on_rescan_all_clicked(self) -> None:
+        self._model_service.rescan_all()
+        self._show_status("Re-scanned all registered models.", "info")
+        self._refresh_data()
+
+    def _on_add_custom_folder_clicked(self) -> None:
+        dir_path = QFileDialog.getExistingDirectory(self, "Select Local Custom Model Directory")
+        if not dir_path:
+            return
+
+        spec, errors = self._model_service.register_custom_model(dir_path)
+        if errors or spec is None:
+            msg = "Could not register model:\n\n" + "\n".join(f"• {e}" for e in errors)
+            QMessageBox.critical(self, "Registration Failed", msg)
         else:
-            self.lbl_status.setStyleSheet(
-                "background-color: #1b3b24; color: #51cf66; border: 1px solid #2b7a41; "
-                "border-radius: 6px; padding: 8px; font-weight: bold;"
-            )
+            self._show_status(f"Successfully registered custom model '{spec.display_name}'.", "good")
+            self._refresh_data()
+
+    def _on_add_hf_model_clicked(self) -> None:
+        dialog = AddCustomHfModelDialog(self._service, self)
+        dialog.exec()
+
+    def _show_status(self, text: str, state: str) -> None:
+        self.lbl_status.setText(text)
+        self.lbl_status.setProperty("statusState", state)
+        self.lbl_status.style().unpolish(self.lbl_status)
+        self.lbl_status.style().polish(self.lbl_status)
         self.lbl_status.show()
